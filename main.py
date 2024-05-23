@@ -288,11 +288,14 @@ entry_K.insert(0, "25")
 
 
 
+botao_local = tk.Button(janela, text="Global", command=processar_imagem_local)
+botao_local.place(x=10, y=530)
+
 label_Global = Label(janela, text="Lim:")
 label_Global.place(x=10, y=560)
-label_Global = Entry(janela)
-label_Global.place(x=50, y=590)
-label_Global.insert(0, "25") 
+entry_K_Global = Entry(janela)
+entry_K_Global.place(x=50, y=560)
+entry_K_Global.insert(0, "25") 
 
 
 # Label para exibir A imagem de entrada e SAIDA
@@ -300,6 +303,8 @@ label_entrada = Label(janela)
 label_entrada.place(x=200, y=0, width=800, height=800)
 label_resultado = Label(janela)
 label_resultado.place(x=1000, y=0, width=800, height=800)
+
+
 
 
 # Inicia o loop principal da interface gráfica
