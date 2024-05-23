@@ -5,6 +5,7 @@ from tkinter import Label
 from PIL import Image, ImageTk
 import os
 import numpy as np
+import math
 
 
 # Função para abrir o seletor de arquivos e carregar A imagem
@@ -200,7 +201,94 @@ def processar_imagem_local():
     label_resultado.config(image=imagem_tk)
     label_resultado.image = imagem_tk
     label_resultado.processed_image = resultado 
-    
+
+
+## PROC GLOBAL
+
+
+# Etapa 1: Obtenha uma imagem binária com as bordas da imagem
+def obter_bordas(img):
+    bordas = cv2.Canny(img, 100, 200)
+    return bordas
+
+# Etapa 2: Defina como o plano \rho\theta será dividido (estrutura da matriz acumuladora)
+def definir_acumuladora(img, passo_angulo=1):
+    thetas = np.deg2rad(np.arange(-90.0, 90.0, passo_angulo))
+    largura, altura = img.shape
+    comprimento_diag = int(round(math.sqrt(largura ** 2 + altura ** 2)))
+    rhos = np.linspace(-comprimento_diag, comprimento_diag, comprimento_diag * 2)
+    acumuladora = np.zeros((2 * comprimento_diag, len(thetas)), dtype=np.uint8)
+    return acumuladora, thetas, rhos
+
+# Etapa 3: Aplique a parametrização aos pontos da imagem das bordas, atualizando a matriz acumuladora
+def aplicar_parametrizacao(img_bordas, acumuladora, thetas, rhos):
+    largura, altura = img_bordas.shape
+    comprimento_diag = len(rhos) // 2
+    cos_t = np.cos(thetas)
+    sin_t = np.sin(thetas)
+    y_idxs, x_idxs = np.nonzero(img_bordas)
+
+    for i in range(len(x_idxs)):
+        x = x_idxs[i]
+        y = y_idxs[i]
+        for t_idx in range(len(thetas)):
+            rho = int(round(x * cos_t[t_idx] + y * sin_t[t_idx])) + comprimento_diag
+            acumuladora[rho, t_idx] += 1
+
+    return acumuladora
+
+# Etapa 4: Examine a matriz acumuladora em busca de células com valores elevados
+def encontrar_linhas_acumuladora(acumuladora, thetas, rhos, limiar):
+    linhas = []
+    for r_idx in range(acumuladora.shape[0]):
+        for t_idx in range(acumuladora.shape[1]):
+            if acumuladora[r_idx, t_idx] > limiar:
+                rho = rhos[r_idx]
+                theta = thetas[t_idx]
+                linhas.append((rho, theta))
+    return linhas
+
+# Etapa 5: Examine a relação (principalmente as de continuidade) entre os pixels oriundos das células escolhidas
+def desenhar_linhas(img, linhas):
+    # Verifica se a imagem está em escala de cinza e converte se necessário
+    if len(img.shape) == 3 and img.shape[2] == 3:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    img_linhas = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    comprimento_diag = int(round(math.sqrt(img.shape[0] ** 2 + img.shape[1] ** 2)))
+    for rho, theta in linhas:
+        a = np.cos(theta)
+        b = np.sin(theta)
+        x0 = a * rho
+        y0 = b * rho
+        x1 = int(x0 + comprimento_diag * (-b))
+        y1 = int(y0 + comprimento_diag * (a))
+        x2 = int(x0 - comprimento_diag * (-b))
+        y2 = int(y0 - comprimento_diag * (a))
+        cv2.line(img_linhas, (x1, y1), (x2, y2), (0, 0, 255), 1)
+    return img_linhas
+
+def processar_imagem_global():
+    img = label_resultado.processed_image
+    limiar_valores_elevados = int(entry_K_Global.get())   # Defina o limiar aqui
+    # Etapa 1: Obtenha uma imagem binária com as bordas da imagem
+    bordas = obter_bordas(img)
+    # Etapa 2: Defina como o plano rho e theta será dividido
+    acumuladora, thetas, rhos = definir_acumuladora(bordas)
+    # Etapa 3: Aplique a parametrização aos pontos da imagem das bordas, atualizando a matriz acumuladora
+    acumuladora = aplicar_parametrizacao(bordas, acumuladora, thetas, rhos)
+    # Etapa 4: Examine a matriz acumuladora em busca de células com valores elevados
+    linhas_detectadas = encontrar_linhas_acumuladora(acumuladora, thetas, rhos, limiar=limiar_valores_elevados)
+    # Etapa 5: Examine a relação entre os pixels oriundos das células escolhidas
+    img_com_linhas = desenhar_linhas(img, linhas_detectadas)
+
+    imagem_pil = Image.fromarray(img_com_linhas)
+    imagem_tk = ImageTk.PhotoImage(imagem_pil)
+
+    label_resultado.config(image=imagem_tk)
+    label_resultado.image = imagem_tk
+    label_resultado.processed_image = img_com_linhas 
+
 
 
 ##JANELAS DAS IMAGENS
@@ -208,7 +296,7 @@ def processar_imagem_local():
 # Configuração da interface gráfica usando Tkinter
 janela = tk.Tk()
 janela.title("Visualizador de Imagens")
-janela.geometry("1100x500")
+janela.geometry("1100x900")
 
 # Botão para selecionar A imagem
 botao_selecionar = tk.Button(janela, text="Selecionar Imagem", command=selecionar_imagem)
@@ -286,16 +374,14 @@ entry_K.insert(0, "25")
 
 
 
-
-
-botao_local = tk.Button(janela, text="Global", command=processar_imagem_local)
+botao_local = tk.Button(janela, text="Global", command=processar_imagem_global)
 botao_local.place(x=10, y=530)
 
 label_Global = Label(janela, text="Lim:")
 label_Global.place(x=10, y=560)
 entry_K_Global = Entry(janela)
 entry_K_Global.place(x=50, y=560)
-entry_K_Global.insert(0, "25") 
+entry_K_Global.insert(0, "100") 
 
 
 # Label para exibir A imagem de entrada e SAIDA
@@ -303,8 +389,6 @@ label_entrada = Label(janela)
 label_entrada.place(x=200, y=0, width=800, height=800)
 label_resultado = Label(janela)
 label_resultado.place(x=1000, y=0, width=800, height=800)
-
-
 
 
 # Inicia o loop principal da interface gráfica
