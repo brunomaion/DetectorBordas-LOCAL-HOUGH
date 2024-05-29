@@ -204,8 +204,6 @@ def processar_imagem_local():
 
 
 ## PROC GLOBAL
-
-
 # Etapa 1: Obtenha uma imagem binária com as bordas da imagem
 def obter_bordas(img):
     bordas = cv2.Canny(img, 100, 200)
@@ -288,6 +286,14 @@ def processar_imagem_global():
     label_resultado.config(image=imagem_tk)
     label_resultado.image = imagem_tk
     label_resultado.processed_image = img_com_linhas 
+
+def salvar_imagem():
+    if hasattr(label_resultado, 'processed_image'):
+        caminho_imagem = filedialog.asksaveasfilename(defaultextension=".png",
+                                                       filetypes=[("Imagem PNG", "*.png")])
+        if caminho_imagem:
+            imagem_salvar = label_resultado.processed_image
+            cv2.imwrite(caminho_imagem, imagem_salvar)
 
 
 
@@ -389,6 +395,9 @@ label_entrada = Label(janela)
 label_entrada.place(x=200, y=0, width=800, height=800)
 label_resultado = Label(janela)
 label_resultado.place(x=1000, y=0, width=800, height=800)
+
+botao_salvar = tk.Button(janela, text="Salvar Imagem", command=salvar_imagem)
+botao_salvar.place(x=10, y=590)
 
 
 # Inicia o loop principal da interface gráfica
